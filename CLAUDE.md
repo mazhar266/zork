@@ -17,4 +17,4 @@ source archive. Plan and status: `docs/PLAN.md`.
 - `cd zork-mcp && uv run pytest` (needs WSL Ubuntu with `/usr/games/dfrotz`).
 - Server is mcp 2.x: `from mcp.server.mcpserver import MCPServer` (not FastMCP).
 - Engine quirks are in `src/zork_mcp/engine.py`: status line is stripped and parsed, prompts end
-  in `>`, `]: `, `? ` or `): `.
+  in `>`, `]: `, `? ` or `): `. Saves use bare filenames; dfrotz `-R` confines them to `saves/`.

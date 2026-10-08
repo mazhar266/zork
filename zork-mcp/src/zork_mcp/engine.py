@@ -15,6 +15,8 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .transcript import Transcript
+
 ROOT = Path(os.environ.get("ZORK_ROOT", Path(__file__).resolve().parents[2]))
 GAMES_DIR = Path(os.environ.get("ZORK_GAMES_DIR", ROOT / "games"))
 SAVES_DIR = Path(os.environ.get("ZORK_SAVES_DIR", ROOT / "saves"))
@@ -46,7 +48,7 @@ class Reply:
 @dataclass
 class ZMachine:
     game: str = ""
-    history: list[tuple[str, str]] = field(default_factory=list)
+    history: Transcript = field(default_factory=Transcript)
     room: str | None = None
     score: int | None = None
     moves: int | None = None
@@ -72,33 +74,45 @@ class ZMachine:
             self.history.clear()
             self.room = self.score = self.moves = None
             self._queue = queue.Queue()
-            cmd = ["wsl", "-d", WSL_DISTRO, "-e", DFROTZ, "-p", "-m", "-q", "-S", "0", _wsl_path(story)]
+            # -R confines save/restore files to SAVES_DIR; dfrotz reduces any path to its basename.
+            cmd = [
+                "wsl", "-d", WSL_DISTRO, "-e", DFROTZ,
+                "-p", "-m", "-q", "-S", "0", "-R", _wsl_path(SAVES_DIR), _wsl_path(story),
+            ]
             self._proc = subprocess.Popen(
                 cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
             )
             threading.Thread(target=self._pump, args=(self._proc, self._queue), daemon=True).start()
             reply = self._read(first_timeout=20.0)
-            self.history.append(("<start>", reply.text))
+            self.history.add("<start>", reply.text)
             return reply
 
     def stop(self) -> None:
         with self._lock:
-            if self._proc is not None:
-                if self._proc.poll() is None:
-                    self._proc.kill()
-                self._proc.wait()
-                self._proc = None
+            proc, self._proc = self._proc, None
+            if proc is None:
+                return
+            if proc.poll() is None and proc.stdin:
+                try:
+                    proc.stdin.write(b"quit\ny\n")
+                    proc.stdin.flush()
+                    proc.wait(timeout=3)
+                except (OSError, subprocess.TimeoutExpired):
+                    pass
+            if proc.poll() is None:
+                proc.kill()
+            proc.wait()
 
     # ---- commands --------------------------------------------------------
 
     def send(self, command: str) -> Reply:
         with self._lock:
             reply = self._raw_send(command)
-            self.history.append((command, reply.text))
+            self.history.add(command, reply.text)
             return reply
 
     def save(self, name: str) -> str:
-        path = _wsl_path(SAVES_DIR / f"{_safe_name(name)}.qzl")
+        path = f"{_safe_name(name)}.qzl"  # relative to the -R directory
         with self._lock:
             out = self._raw_send("save")
             if "filename" not in out.text:
@@ -106,7 +120,7 @@ class ZMachine:
             out = self._raw_send(path)
             if "Overwrite" in out.text:
                 out = self._raw_send("y")
-            self.history.append((f"<save {name}>", out.text))
+            self.history.add(f"<save {name}>", out.text)
             if "Ok." not in out.text:
                 raise GameError(f"Save failed: {out.text!r}")
             return out.text
@@ -119,8 +133,8 @@ class ZMachine:
             out = self._raw_send("restore")
             if "filename" not in out.text:
                 raise GameError(f"Game did not ask for a filename. Reply: {out.text!r}")
-            out = self._raw_send(_wsl_path(file))
-            self.history.append((f"<restore {name}>", out.text))
+            out = self._raw_send(file.name)
+            self.history.add(f"<restore {name}>", out.text)
             if "Failed" in out.text:
                 raise GameError("Restore failed.")
             return out

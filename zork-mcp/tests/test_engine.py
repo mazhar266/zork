@@ -38,6 +38,34 @@ def test_save_restore_roundtrip(z):
     assert "pytest-slot" in z.list_saves()
 
 
+def test_save_cannot_escape_saves_dir(z):
+    # Typing a path at the game's own save prompt stays confined to SAVES_DIR by -R.
+    from zork_mcp.engine import SAVES_DIR
+
+    z.start("zork1")
+    z.send("save")
+    z.send("../pytest-escape.qzl")
+    assert not (SAVES_DIR.parent / "pytest-escape.qzl").exists()
+    confined = SAVES_DIR / "pytest-escape.qzl"
+    assert confined.exists()
+    confined.unlink()
+
+
+def test_history_is_recorded(z):
+    z.start("zork1")
+    z.send("open mailbox")
+    turns = z.history.last(2)
+    assert turns[0].command == "<start>"
+    assert turns[1].command == "open mailbox" and "leaflet" in turns[1].reply
+
+
+def test_stop_quits_cleanly(z):
+    z.start("zork1")
+    z.stop()
+    assert not z.is_alive
+    z.stop()  # idempotent
+
+
 def test_restore_missing_save(z):
     z.start("zork1")
     with pytest.raises(GameError):

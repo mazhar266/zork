@@ -90,6 +90,12 @@ def get_status() -> str:
 
 
 @mcp.tool()
+def get_score() -> str:
+    """Ask the game for the score and rank (the 'score' command). Does not use a move."""
+    return _run(lambda: _fmt(game.send("score")))
+
+
+@mcp.tool()
 def save_game(name: str) -> str:
     """Save the current game under a name (letters, digits, - and _). Overwrites an existing save."""
     return _run(lambda: f"Saved as {name!r}.\n{game.save(name)}")
@@ -111,9 +117,7 @@ def list_saves() -> list[str]:
 def get_history(n: int = 20) -> str:
     """Return the last n commands with the game's replies, oldest first. Useful after losing context."""
     n = max(1, min(n, 200))
-    if not game.history:
-        return "No history yet."
-    return "\n\n".join(f"> {cmd}\n{text}" for cmd, text in game.history[-n:])
+    return game.history.render(n) or "No history yet."
 
 
 @mcp.tool()
@@ -132,7 +136,7 @@ def stop_game() -> str:
 @mcp.resource("zork://transcript")
 def transcript() -> str:
     """The full transcript of the current game."""
-    return "\n\n".join(f"> {cmd}\n{text}" for cmd, text in game.history) or "No game yet."
+    return game.history.render() or "No game yet."
 
 
 @mcp.prompt()
