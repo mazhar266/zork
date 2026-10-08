@@ -1,0 +1,4 @@
+vendor/
+saves/
+.venv/
+__pycache__/

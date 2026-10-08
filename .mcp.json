@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "zork": {
+      "command": "uv",
+      "args": ["--directory", "zork-mcp", "run", "zork-mcp"]
+    }
+  }
+}
