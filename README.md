@@ -23,6 +23,82 @@ This file is the readme detailing the content and context for this repository.
 ### [tree.txt](../master/tree.txt)
 A file tree listing the files in the [```zork```](../master/zork) directory showing the original file timestamps as extracted from the tape image.
 
+## Playing Zork with an AI: the Zork MCP server
+The [`zork-mcp`](zork-mcp) folder adds an [MCP](https://modelcontextprotocol.io) server that lets an AI assistant such as Claude Code play Infocom's Zork I, II and III. It does not run the 1977 MDL source above. It runs the compiled Z-machine story files (`zork-mcp/games/zork{1,2,3}.z3`) from Microsoft's MIT-licensed [historicalsource](https://github.com/historicalsource/zork1) releases, using the `dfrotz` interpreter in WSL.
+
+### 1. Install the prerequisites (Windows)
+- **WSL with Ubuntu:** `wsl --install -d Ubuntu`, if you don't already have it.
+- **dfrotz:** inside Ubuntu, run the following. It installs `/usr/games/dfrotz`.
+  ```bash
+  sudo apt update && sudo apt install -y frotz
+  ```
+- **uv** (Python 3.10+): see https://docs.astral.sh/uv/.
+
+Check that the game runs:
+```bash
+wsl -d Ubuntu -e /usr/games/dfrotz -v
+```
+
+### 2. Install and test the server
+```bash
+cd zork-mcp
+uv sync
+uv run pytest
+```
+All tests should pass. They boot each game, save and restore, detect death, and make a full MCP round trip.
+
+### 3. Use it from Claude Code
+The repository root has a project-scoped [`.mcp.json`](.mcp.json):
+```json
+{ "mcpServers": { "zork": { "command": "uv", "args": ["--directory", "zork-mcp", "run", "zork-mcp"] } } }
+```
+1. Start Claude Code in the repository root and approve the `zork` server when asked.
+2. Run `/mcp` to check that `zork` is connected.
+3. Ask, for example: *"Start Zork I and play 30 moves, then tell me your score."*
+
+To make the server available in every project instead, use an absolute path:
+```bash
+claude mcp add zork -- uv --directory C:\path\to\zork\zork-mcp run zork-mcp
+```
+
+### 4. Use it from Claude Desktop or another MCP client
+Add the same server to `claude_desktop_config.json` (or your client's config), using an absolute path:
+```json
+{
+  "mcpServers": {
+    "zork": {
+      "command": "uv",
+      "args": ["--directory", "C:\\path\\to\\zork\\zork-mcp", "run", "zork-mcp"]
+    }
+  }
+}
+```
+
+### 5. Try the tools by hand (optional)
+```bash
+cd zork-mcp
+uv run mcp dev src/zork_mcp/server.py
+```
+This opens the MCP Inspector in a browser. The first run downloads it through `npx`.
+
+### Tools
+| Tool | Purpose |
+|---|---|
+| `start_game(game_name="zork1")` | Start or restart `zork1`, `zork2` or `zork3` and return the opening text |
+| `send_command(text)` | Send one command (`open mailbox`, `n`, `take lamp`) and return the reply with room, score and moves |
+| `look`, `inventory`, `get_score` | Shortcuts for those commands |
+| `get_status` | Last known room, score and moves, without using a move |
+| `save_game(name)`, `load_game(name)`, `list_saves` | Save files are kept in `zork-mcp/saves/` |
+| `get_history(n=20)` | The last n commands and replies |
+| `list_games`, `stop_game` | Housekeeping |
+
+There is also a `zork://transcript` resource and a `play_zork` prompt.
+
+### Configuration
+Optional environment variables: `ZORK_GAMES_DIR`, `ZORK_SAVES_DIR`, `ZORK_DFROTZ` (default `/usr/games/dfrotz`) and `ZORK_WSL_DISTRO` (default `Ubuntu`). Saves are confined to the saves folder by dfrotz's `-R` option.
+
+More details are in [`zork-mcp/README.md`](zork-mcp/README.md). Plans are in [`docs/PLAN.md`](docs/PLAN.md) (the MCP server) and [`docs/WEBSITE_PLAN.md`](docs/WEBSITE_PLAN.md) (a website where an AI plays nonstop).
+
 ## Preferred Citation
 [filename], Zork source code, 1977, Massachusetts Institute of Technology, Tapes of Tech Square (ToTS) collection, MC-0741. Massachusetts Institute of Technology, Department of Distinctive Collections, Cambridge, Massachusetts. [swh:1:dir:ab9e2babe84cfc909c64d66291b96bb6b9d8ca15](https://archive.softwareheritage.org/swh:1:dir:ab9e2babe84cfc909c64d66291b96bb6b9d8ca15)
 ## Rights
